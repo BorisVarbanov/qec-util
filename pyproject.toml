@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "qec_util"
+version = "0.1.0"
+description = ""
+authors = ["Boris Varbanov <b.m.varbanov@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "~3.10"
+PyYAML = "^6.0"
+matplotlib = "^3.5.1"
+
+[tool.poetry.dev-dependencies]
+black = "^22.1.0"
+pylint = "^2.12.2"
+pycodestyle = "^2.8.0"
+pydocstyle = "^6.1.1"
+isort = "^5.10.1"
+mypy = "^0.931"
+vulture = "^2.3"
+quantumsim = {path = "../quantumsim", develop = true}
+pytest = "^6.2.5"
+flake8 = "^4.0.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
