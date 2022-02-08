@@ -103,6 +103,8 @@ class Layout:
         else:
             neighors = tuple(self.param("neighbors", qubit).values())
 
+        neighors = tuple(filter(lambda qubit: qubit is not None, neighors))
+
         if qubit_params:
             sel_qubits = []
             for qubit in neighors:
