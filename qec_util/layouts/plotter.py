@@ -3,21 +3,43 @@ from typing import Optional
 from itertools import combinations
 
 import matplotlib.pyplot as plt
+from .layout import Layout
 
 RE_FILTER = re.compile("([a-zA-Z]+)([0-9]+)")
 
 
 def plot(
-    layout,
-    label_qubits=True,
+    layout: Layout,
+    label_qubits: Optional[bool] = True,
     *,
     axis: Optional[plt.Axes] = None,
 ):
+    """
+    plot Function to plot a layout
+
+    Parameters
+    ----------
+    layout : Layout
+        [description]
+    label_qubits : bool, optional
+        [description], by default True
+    axis : Optional[plt.Axes], optional
+        [description], by default None
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
     plotter = MatplotlibPlotter(layout, axis)
     return plotter.plot(label_qubits)
 
 
 class MatplotlibPlotter:
+    """
+    A plotter based on the matplotlib library for Layout objects.
+    """
+
     zorders = dict(
         line=3,
         patch=1,
@@ -47,9 +69,14 @@ class MatplotlibPlotter:
 
     def __init__(
         self,
-        layout,
+        layout: Layout,
         ax: Optional[plt.Axes] = None,
     ) -> None:
+        for qubit in layout.get_qubits():
+            if not layout.param("coords", qubit):
+                raise ValueError(
+                    f"All qubits in 'layout' must have 'coords' parameter set, qubit {qubit} does not."
+                )
         self.layout = layout
 
         if ax is not None:
@@ -60,8 +87,6 @@ class MatplotlibPlotter:
 
         self.ax.set_aspect("equal")
         self.ax.axis("off")
-
-        self._qubit_cords = {}
 
     def _label_qubit(self, qubit, x, y):
         match = RE_FILTER.match(qubit)
@@ -95,18 +120,18 @@ class MatplotlibPlotter:
         )
         self.ax.add_artist(patch)
 
-    def _draw_connection(self, x_cords, y_cords):
+    def _draw_connection(self, qubits):
+        q_coords = (self.layout.param("coords", qubit) for qubit in qubits)
+        x_cords, y_cords = zip(*q_coords)
         self.ax.plot(x_cords, y_cords, **self.line_params)
 
     def _draw_qubits(self, label_qubits=True):
         qubits = self.layout.get_qubits()
 
         init_qubit = qubits.pop()
-        init_cords = (0, 0)
-
         drawn_qubits = set()
 
-        def _dfs_draw(qubit, x, y):
+        def _dfs_draw(qubit):
             if qubit not in drawn_qubits:
                 role = self.layout.param("role", qubit)
                 if role == "data":
@@ -116,25 +141,18 @@ class MatplotlibPlotter:
                     stab_type = self.layout.param("stab_type", qubit)
                     color = "#2196f3" if stab_type == "x_type" else "#4caf50"
 
-                self._qubit_cords[qubit] = (x, y)
+                x, y = self.layout.param("coords", qubit)
                 self._draw_qubit_circ(x, y, color)
                 if label_qubits:
                     self._label_qubit(qubit, x, y)
                 drawn_qubits.add(qubit)
 
-                neighbors_dict = self.layout.param("neighbors", qubit)
-                for con_dir, neighbour in neighbors_dict.items():
-                    if neighbour:
-                        ver_dir, hor_dir = con_dir.split("_")
+                for neighbour in self.layout.get_neighbors(qubit):
+                    _dfs_draw(neighbour)
+                    self._draw_connection((qubit, neighbour))
 
-                        new_x = x - 1 if hor_dir == "west" else x + 1
-                        new_y = y - 1 if ver_dir == "south" else y + 1
-
-                        _dfs_draw(neighbour, new_x, new_y)
-                        self._draw_connection((x, new_x), (y, new_y))
-
-        _dfs_draw(init_qubit, *init_cords)
-        qubit_cords = list(self._qubit_cords.values())
+        _dfs_draw(init_qubit)
+        qubit_cords = (self.layout.param("coords", qubit) for qubit in qubits)
         x_cords, y_cords = zip(*qubit_cords)
         self.ax.set_xlim(min(x_cords) - 1, max(x_cords) + 1)
         self.ax.set_ylim(min(y_cords) - 1, max(y_cords) + 1)
@@ -142,12 +160,14 @@ class MatplotlibPlotter:
     def _draw_patches(self):
         anc_qubits = self.layout.get_qubits(role="anc")
         for anc in anc_qubits:
-            anc_cords = self._qubit_cords[anc]
+            anc_cords = self.layout.param("coords", anc)
             stab_type = self.layout.param("stab_type", anc)
             color = "#2196f3" if stab_type == "x_type" else "#4caf50"
             neigbors = self.layout.get_neighbors(anc)
             for data_pair in combinations(neigbors, 2):
-                pair_cords = list(self._qubit_cords[data] for data in data_pair)
+                pair_cords = list(
+                    self.layout.param("coords", data) for data in data_pair
+                )
                 dist = sum([abs(i - j) for i, j in zip(*pair_cords)])
                 if dist <= 2:
                     cords = [anc_cords, *pair_cords]

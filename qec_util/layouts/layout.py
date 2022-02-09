@@ -5,8 +5,6 @@ from os import path
 import yaml
 from matplotlib.pyplot import Axes
 
-from .plotter import MatplotlibPlotter
-
 
 class Layout:
     """
@@ -276,5 +274,7 @@ class Layout:
         matplotlib.pyplot.figure
             The figure with the plotted layout.
         """
+        from .plotter import MatplotlibPlotter
+
         plotter = MatplotlibPlotter(self, axis)
         return plotter.plot(label_qubits, draw_patches=draw_patches)
