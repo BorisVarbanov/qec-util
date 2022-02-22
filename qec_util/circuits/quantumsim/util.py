@@ -1,10 +1,48 @@
-from itertools import repeat
+from itertools import repeat, groupby
+from re import L
+from typing import Dict
 
 from quantumsim.circuits import Circuit
 from quantumsim.bases import general
 
 
 def circuit_from_schedule(schedule, layout, model, *, finalize=False, add_idling=False):
+    """
+    circuit_from_schedule Generates a quantumsim circuit from a schedule.
+
+    Parameters
+    ----------
+    schedule : dict
+        The circuit schedule
+    layout : Layout
+        The chip layout
+    model : Model
+        The quantum gate and error model.
+    finalize : bool, optional
+        Whether to insert idling gates and compile the circuit, by default False
+    add_idling : bool, optional
+        Whether to include idling gates idling gates for the circuit, by default False
+
+    Returns
+    -------
+    Circuit
+        The compile quantumsim.Circuit object.
+
+    Raises
+    ------
+    ValueError
+        If one of the qubits acted on by an operation is not in the layout.
+    ValueError
+        TODO: finish
+    ValueError
+        TODO: finish
+    ValueError
+        TODO: finish
+    ValueError
+        TODO: finish
+    ValueError
+        TODO: finish
+    """
     gates = []
     qubits = layout.get_qubits()
     qubit_times = {qubit: 0.0 for qubit in qubits}
@@ -81,3 +119,36 @@ def circuit_from_schedule(schedule, layout, model, *, finalize=False, add_idling
         return circuit.finalize(bases_in=bases_in)
 
     return circuit
+
+
+def clifford_layers(circuit: Circuit, gate_dict: Dict[str, str] = None):
+    """
+    clifford_layers Returns a list of clifford layers
+
+    Parameters
+    ----------
+    circuit : quantumsim.Circuit
+        _description_
+    gate_dict : _type_
+        _description_
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
+    qubits = list(circuit.qubits)
+    layers = []
+
+    for _, layer_gates in groupby(circuit.gates, lambda gate: gate.time_start):
+        gate_list = []
+        for label, gates in groupby(layer_gates, lambda gate: gate.label):
+            if label != "idle":
+                qubits = [q for gate in gates for q in gate.qubits]
+                if gate_dict:
+                    gate_list.append((gate_dict[label], qubits))
+                else:
+                    gate_list.append((label, qubits))
+        layers.append(gate_list)
+
+    return layers

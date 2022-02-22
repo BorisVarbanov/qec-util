@@ -4,7 +4,7 @@ import re
 import matplotlib.pyplot as plt
 import matplotlib.patches as pt
 
-from ..layouts import Layout
+from ...layouts import Layout
 from quantumsim.circuits import Circuit
 
 
@@ -15,11 +15,34 @@ def plot(
     ax: Optional[plt.Axes] = None,
     qubit_order: Optional[List[str]] = None,
 ):
+    """
+    plot Plots the circuit
+
+    Parameters
+    ----------
+    circuit : quantumsim.Circuit
+        The quantum circuit to be plotted
+    layout : qec_util.Layout
+        The layout of the device.
+    ax : Optional[plt.Axes], optional
+        The axis on which the figure is plotted, by default None
+    qubit_order : Optional[List[str]], optional
+        The list of qubit labels that defines the order in the plot, by default None
+
+    Returns
+    -------
+    matplotlib.Figure
+        The figure with the plot.
+    """
     plotter = MatplotlibPlotter(circuit, layout, ax, qubit_order=qubit_order)
     return plotter.plot()
 
 
 class MatplotlibPlotter:
+    """
+    Matplotlib Plotter
+    """
+
     zorders = {
         "line": 1,
         "marker": 1,
@@ -53,12 +76,20 @@ class MatplotlibPlotter:
         self.ax.set_ylim(-y_pad, len(self.qubits) + y_pad)
         self.ax.set_xlim(
             -x_pad,
-            (circuit.time_end / unit_time) + x_pad,
+            circuit.time_end / self._unit_time + x_pad,
         )
         self.ax.set_aspect("equal")
         self.ax.axis("off")
 
     def plot(self):
+        """
+        plot Plots the circuit
+
+        Returns
+        -------
+        Figure
+            matplotlib figure.
+        """
         for qubit in self.qubits:
             self._draw_qubit(qubit)
             self._annotate_qubit(qubit)
@@ -69,7 +100,10 @@ class MatplotlibPlotter:
         return self.fig
 
     def _plot_gate(self, gate):
-        time = gate.time_start / self._unit_time
+        time_start = gate.time_start / self._unit_time
+        duration = gate.duration / self._unit_time
+
+        time = time_start + (0.5 * duration)
 
         if gate.label == "cphase":
             ctrl_q, target_q = gate.qubits
@@ -109,8 +143,8 @@ class MatplotlibPlotter:
         elif gate.label == "measure":
             ind = self.qubits.index(gate.qubits[0])
             rect = pt.Rectangle(
-                (time - 0.3, ind - 0.3),
-                11.6,
+                (time_start, ind - 0.3),
+                duration,
                 0.6,
                 linewidth=1,
                 fc="white",
@@ -153,8 +187,8 @@ class MatplotlibPlotter:
             q_start, q_end = min(inds), max(inds)
             rect = pt.Rectangle(
                 (time - 0.3, q_start - 0.3),
-                0.6,
-                q_end - q_start + 0.6,
+                0.5 * gate.duration / self._unit_time,
+                q_end - q_start + 0.5,
                 linewidth=1,
                 fc="white",
                 ec="black",
