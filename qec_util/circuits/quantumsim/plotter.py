@@ -179,10 +179,31 @@ class MatplotlibPlotter:
         elif gate.label == "rotate_y":
             inds = [self.qubits.index(q) for q in gate.qubits]
             angle = gate.params["angle"]
-            if angle == 90:
-                gate_label = r"$R_y^{\pi/2}$"
-            else:
-                gate_label = r"$R_y^{-\pi/2}$"
+            gate_label = f"$Y_{{{angle}}}$"
+            q_start, q_end = min(inds), max(inds)
+            rect = pt.Rectangle(
+                (time - 0.3, q_start - 0.3),
+                0.5 * gate.duration / self._unit_time,
+                q_end - q_start + 0.5,
+                linewidth=1,
+                fc="white",
+                ec="black",
+                zorder=self.zorders["box"],
+            )
+            self.ax.add_patch(rect)
+            self.ax.text(
+                time,
+                q_start + 0.5 * (q_end - q_start),
+                gate_label,
+                ha="center",
+                va="center",
+                fontsize=6,
+                zorder=self.zorders["text"],
+            )
+        elif gate.label == "rotate_x":
+            inds = [self.qubits.index(q) for q in gate.qubits]
+            angle = gate.params["angle"]
+            gate_label = f"$X_{{{angle}}}$"
 
             q_start, q_end = min(inds), max(inds)
             rect = pt.Rectangle(
@@ -204,6 +225,7 @@ class MatplotlibPlotter:
                 fontsize=6,
                 zorder=self.zorders["text"],
             )
+
         elif gate.label == "pipeline_measure":
             ind = self.qubits.index(gate.qubits[0])
             rect = pt.Rectangle(
