@@ -1,5 +1,4 @@
 from itertools import repeat, groupby
-from re import L
 from typing import Dict
 
 from quantumsim.circuits import Circuit
