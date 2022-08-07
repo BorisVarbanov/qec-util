@@ -1,6 +1,6 @@
-from typing import List, Tuple, Dict, Any, Optional
 from copy import deepcopy
 from os import path
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 from matplotlib.pyplot import Axes
@@ -95,9 +95,7 @@ class Layout:
             [description]
         """
         if direction is not None:
-            neighors = tuple(
-                self.param("neighbors", qubit)[direction],
-            )
+            neighors = (self.param("neighbors", qubit)[direction],)
         else:
             neighors = tuple(self.param("neighbors", qubit).values())
 
