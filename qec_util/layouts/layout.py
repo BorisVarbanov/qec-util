@@ -47,6 +47,7 @@ class Layout:
             )
 
         self.name = setup.get("name")
+        self.distance = setup.get("distance")
         self.description = setup.get("description")
         self.interaction_order = setup.get("interaction_order")
 
