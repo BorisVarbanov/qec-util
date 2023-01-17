@@ -3,9 +3,13 @@ from typing import Optional
 from xarray import DataArray
 
 
-def get_syndromes(anc_meas: DataArray) -> DataArray:
-    syndromes = anc_meas ^ anc_meas.shift(qec_round=1, fill_value=0)
-    syndromes.name = "syndromes"
+def get_syndromes(anc_meas: xr.DataArray, meas_reset) -> xr.DataArray:
+    if meas_reset:
+        syndromes = anc_meas
+        syndromes.name = "syndromes"
+    else:
+        syndromes = anc_meas ^ anc_meas.shift(qec_round=1, fill_value=0)
+        syndromes.name = "syndromes"
     return syndromes
 
 
