@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import deque
 from copy import copy, deepcopy
 from os import path
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import networkx as nx
@@ -250,7 +251,7 @@ class Layout:
         return proj_mat.rename(from_qubit="data_qubit", to_qubit="anc_qubit")
 
     @classmethod
-    def from_yaml(cls, filename: str) -> "Layout":
+    def from_yaml(cls, filename: Union[str, Path]) -> "Layout":
         """
         from_yaml Loads the layout class from a YAML file.
 
@@ -259,7 +260,7 @@ class Layout:
 
         Parameters
         ----------
-        filename : str
+        filename : Union[str, Path]
             The pathfile name of the YAML setup file.
 
         Returns
@@ -280,6 +281,20 @@ class Layout:
         with open(filename, "r") as file:
             layout_setup = yaml.safe_load(file)
             return cls(layout_setup)
+
+    def to_yaml(self, filename: Union[str, Path]) -> None:
+        """
+        to_yaml Saves the layout as a YAML file.
+
+        Parameters
+        ----------
+        filename : Union[str, Path]
+            The pathfile name of the YAML setup file.
+
+        """
+        setup = self.to_dict()
+        with open(filename, "w") as file:
+            yaml.dump(setup, file, default_flow_style=False)
 
     def param(self, param: str, qubit: str) -> Any:
         """
