@@ -3,7 +3,7 @@ from typing import Optional
 from xarray import DataArray
 
 
-def get_syndromes(anc_meas: xr.DataArray, meas_reset) -> xr.DataArray:
+def get_syndromes(anc_meas: DataArray, meas_reset: bool) -> DataArray:
     if meas_reset:
         syndromes = anc_meas
         syndromes.name = "syndromes"
