@@ -131,7 +131,7 @@ def rot_surf_code(distance: int) -> Layout:
                 data_row, data_col = row + row_shift, col + col_shift
                 if not valid_coord(data_row, data_col):
                     continue
-                data_index = get_data_index(data_row, data_col)
+                data_index = data_indexer(data_row, data_col)
                 data_qubit = f"D{data_index}"
 
                 direction = shift_direction(row_shift, col_shift)
