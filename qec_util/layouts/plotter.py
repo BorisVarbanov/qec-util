@@ -93,7 +93,7 @@ class MatplotlibPlotter:
 
     def _get_coords(self, qubit):
         coords = self.layout.param("coords", qubit)
-        return reversed(coords)
+        return tuple(reversed(coords))
 
     def _label_qubit(self, qubit: str, x: float, y: float) -> None:
         match = RE_FILTER.match(str(qubit))
