@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import deque
 from copy import copy, deepcopy
 from os import path
 from pathlib import Path
@@ -54,7 +53,6 @@ class Layout:
 
         self.graph = nx.DiGraph()
         self._load_layout(setup)
-        self._set_coords()
 
         qubits = list(self.graph.nodes)
         num_qubits = len(qubits)
@@ -365,39 +363,6 @@ class Layout:
             for edge_dir, nbr_qubit in nbr_dict.items():
                 if nbr_qubit is not None:
                     self.graph.add_edge(node, nbr_qubit, direction=edge_dir)
-
-    def _set_coords(self) -> None:
-        """
-        set_coords Automatically sets the qubit coordinates. This is used for
-        plotting the layout.
-        """
-
-        def get_shift(direction: str) -> int:
-            if direction in ("south", "west"):
-                return -1
-            return 1
-
-        nodes = list(self.graph.nodes)
-        init_node = nodes.pop()
-        init_coord = (0, 0)
-
-        set_nodes = set()
-
-        queue = deque()
-
-        queue.appendleft((init_node, init_coord))
-        while queue:
-            node, coords = queue.pop()
-
-            self.graph.nodes[node]["coords"] = coords
-            set_nodes.add(node)
-
-            for _, nbr_node, ord_dir in self.graph.edges(node, data="direction"):
-                if nbr_node not in set_nodes:
-                    card_dirs = ord_dir.split("_")
-                    shifts = tuple(map(get_shift, card_dirs))
-                    nbr_coords = tuple(map(sum, zip(coords, shifts)))
-                    queue.appendleft((nbr_node, nbr_coords))
 
 
 def valid_attrs(attrs: Dict[str, Any], **conditions: Any) -> bool:
