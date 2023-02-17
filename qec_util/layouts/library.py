@@ -63,7 +63,7 @@ def rot_surf_code(distance: int) -> Layout:
 
     grid_size = 2 * distance + 1
     data_indexer = partial(get_data_index, distance=distance, start_ind=1)
-    valid_coord = partial(is_valid, size=grid_size)
+    valid_coord = partial(is_valid, max_size=grid_size)
 
     pos_shifts = (1, -1)
     nbr_shifts = tuple(product(pos_shifts, repeat=2))
