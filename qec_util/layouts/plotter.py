@@ -76,7 +76,7 @@ class MatplotlibPlotter:
         ax: Optional[plt.Axes] = None,
     ) -> None:
         for qubit in layout.get_qubits():
-            if not layout.param("coords", qubit):
+            if layout.param("coords", qubit) is None:
                 raise ValueError(
                     f"All qubits in 'layout' must have 'coords' parameter set, qubit {qubit} does not."
                 )
@@ -90,6 +90,10 @@ class MatplotlibPlotter:
 
         self.ax.set_aspect("equal")
         self.ax.axis("off")
+
+    def _get_coords(self, qubit):
+        coords = self.layout.param("coords", qubit)
+        return reversed(coords)
 
     def _label_qubit(self, qubit: str, x: float, y: float) -> None:
         match = RE_FILTER.match(str(qubit))
@@ -124,7 +128,7 @@ class MatplotlibPlotter:
         self.ax.add_artist(patch)
 
     def _draw_connection(self, qubits: Iterable[str]) -> None:
-        q_coords = (self.layout.param("coords", qubit) for qubit in qubits)
+        q_coords = (self._get_coords(qubit) for qubit in qubits)
         x_cords, y_cords = zip(*q_coords)
         self.ax.plot(x_cords, y_cords, **self.line_params)
 
@@ -143,7 +147,7 @@ class MatplotlibPlotter:
                     stab_type = self.layout.param("stab_type", qubit)
                     color = "#2196f3" if stab_type == "x_type" else "#4caf50"
 
-                x, y = self.layout.param("coords", qubit)
+                x, y = self._get_coords(qubit)
                 self._draw_qubit_circ(x, y, color)
                 if label_qubits:
                     self._label_qubit(qubit, x, y)
@@ -154,7 +158,7 @@ class MatplotlibPlotter:
                     self._draw_connection((qubit, neighbour))
 
         _dfs_draw(init_qubit)
-        qubit_cords = (self.layout.param("coords", qubit) for qubit in qubits)
+        qubit_cords = (self._get_coords(qubit) for qubit in qubits)
         x_cords, y_cords = zip(*qubit_cords)
         self.ax.set_xlim(min(x_cords) - 2, max(x_cords) + 2)
         self.ax.set_ylim(min(y_cords) - 2, max(y_cords) + 2)
@@ -162,14 +166,12 @@ class MatplotlibPlotter:
     def _draw_patches(self):
         anc_qubits = self.layout.get_qubits(role="anc")
         for anc in anc_qubits:
-            anc_cords = self.layout.param("coords", anc)
+            anc_cords = self._get_coords(anc)
             stab_type = self.layout.param("stab_type", anc)
             color = "#2196f3" if stab_type == "x_type" else "#4caf50"
             neigbors = self.layout.get_neighbors(anc)
             for data_pair in combinations(neigbors, 2):
-                pair_cords = list(
-                    self.layout.param("coords", data) for data in data_pair
-                )
+                pair_cords = list(self.__get_coords(data) for data in data_pair)
                 dist = sum([abs(i - j) for i, j in zip(*pair_cords)])  # type: ignore
                 if dist <= 2:
                     cords = [anc_cords, *pair_cords]
