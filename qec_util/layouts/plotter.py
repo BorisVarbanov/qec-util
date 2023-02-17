@@ -171,7 +171,7 @@ class MatplotlibPlotter:
             color = "#2196f3" if stab_type == "x_type" else "#4caf50"
             neigbors = self.layout.get_neighbors(anc)
             for data_pair in combinations(neigbors, 2):
-                pair_cords = list(self.__get_coords(data) for data in data_pair)
+                pair_cords = list(self._get_coords(data) for data in data_pair)
                 dist = sum([abs(i - j) for i, j in zip(*pair_cords)])  # type: ignore
                 if dist <= 2:
                     cords = [anc_cords, *pair_cords]
