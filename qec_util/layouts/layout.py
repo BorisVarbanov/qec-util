@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import networkx as nx
+import numpy as np
 import yaml
 from xarray import DataArray
 
@@ -219,6 +220,33 @@ class Layout:
         )
         return data_arr
 
+    def expansion_matrix(self) -> DataArray:
+        node_view = self.graph.nodes(data=True)
+
+        anc_qubits = [node for node, data in node_view if data["role"] == "anc"]
+        coords = [node_view[anc]["coords"] for anc in anc_qubits]
+
+        rows, cols = zip(*coords)
+
+        row_inds, num_rows = index_coords(rows, reverse=True)
+        col_inds, num_cols = index_coords(cols)
+
+        num_anc = len(anc_qubits)
+        anc_inds = range(num_anc)
+
+        tensor = np.zeros((num_anc, num_rows, num_cols), dtype=bool)
+        tensor[anc_inds, row_inds, col_inds] = True
+        expanded_tensor = np.expand_dims(tensor, axis=1)
+
+        expansion_tensor = DataArray(
+            expanded_tensor,
+            dims=["anc_qubit", "channel", "row", "col"],
+            coords=dict(
+                anc_qubit=anc_qubits,
+            ),
+        )
+        return expansion_tensor
+
     def projection_matrix(self, stab_type: str) -> DataArray:
         """
         projection_matrix Returns the projection matrix, mapping
@@ -386,3 +414,18 @@ def valid_attrs(attrs: Dict[str, Any], **conditions: Any) -> bool:
         if attr_val is None or attr_val != val:
             return False
     return True
+
+
+def index_coords(coords: List[int], reverse: bool = False):
+    unique_vals = set(coords)
+    num_unique_vals = len(unique_vals)
+
+    if reverse:
+        unique_inds = reversed(range(num_unique_vals))
+    else:
+        unique_inds = range(num_unique_vals)
+
+    mapping = dict(zip(unique_vals, unique_inds))
+
+    indicies = [mapping[coord] for coord in coords]
+    return indicies, num_unique_vals
