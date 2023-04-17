@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import copy, deepcopy
 from os import path
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import networkx as nx
 import numpy as np
@@ -104,7 +104,7 @@ class Layout:
         setup["layout"] = layout
         return setup
 
-    def get_inds(self, qubits: List[str]) -> List[int]:
+    def get_inds(self, qubits: Sequence[str]) -> List[int]:
         """
         get_inds Returns the indices of the qubits.
 
