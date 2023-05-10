@@ -81,7 +81,7 @@ def rot_surf_code(distance: int) -> Layout:
             qubit_info = dict(
                 qubit=f"D{index}",
                 role="data",
-                coords=(row, col),
+                coords=[row, col],
                 freq_group=freq_group,
                 stab_type=None,
             )
@@ -94,7 +94,7 @@ def rot_surf_code(distance: int) -> Layout:
             qubit_info = dict(
                 qubit=anc_qubit,
                 role="anc",
-                coords=(row, col),
+                coords=[row, col],
                 freq_group="mid",
                 stab_type="x_type",
             )
@@ -121,7 +121,7 @@ def rot_surf_code(distance: int) -> Layout:
             qubit_info = dict(
                 qubit=anc_qubit,
                 role="anc",
-                coords=(row, col),
+                coords=[row, col],
                 freq_group="mid",
                 stab_type="z_type",
             )

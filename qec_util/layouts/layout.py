@@ -82,6 +82,7 @@ class Layout:
         setup = dict()
 
         setup["name"] = self.name
+        setup["distance"] = self.distance
         setup["description"] = self.description
         setup["interaction_order"] = self.interaction_order
 
@@ -97,8 +98,13 @@ class Layout:
                 edge_dir = edge_attrs["direction"]
                 nbr_dict[edge_dir] = nbr_node
 
+            for ver_dir in ("north", "south"):
+                for hor_dir in ("east", "west"):
+                    edge_dir = f"{ver_dir}_{hor_dir}"
+                    if edge_dir not in nbr_dict:
+                        nbr_dict[edge_dir] = None
+
             node_dict["neighbors"] = nbr_dict
-            del node_dict["coords"]
 
             layout.append(node_dict)
         setup["layout"] = layout
