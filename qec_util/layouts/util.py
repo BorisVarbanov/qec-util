@@ -16,7 +16,7 @@ def set_coords(layout: Layout) -> None:
 
     nodes = list(layout.graph.nodes)
     init_node = nodes.pop()
-    init_coord = (0, 0)
+    init_coord = [0, 0]
 
     set_nodes = set()
 
@@ -33,5 +33,5 @@ def set_coords(layout: Layout) -> None:
             if nbr_node not in set_nodes:
                 card_dirs = ord_dir.split("_")
                 shifts = tuple(map(get_shift, card_dirs))
-                nbr_coords = tuple(map(sum, zip(coords, shifts)))
+                nbr_coords = list(map(sum, zip(coords, shifts)))
                 queue.appendleft((nbr_node, nbr_coords))
