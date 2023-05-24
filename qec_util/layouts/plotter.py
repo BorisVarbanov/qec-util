@@ -16,6 +16,7 @@ def plot(
     layout: Layout,
     label_qubits: bool = True,
     draw_patches: bool = True,
+    draw_connections: bool = True,
     *,
     axis: Optional[plt.Axes] = None,
 ) -> Union[Figure, None]:
@@ -37,7 +38,7 @@ def plot(
         [description]
     """
     plotter = MatplotlibPlotter(layout, axis)
-    return plotter.plot(label_qubits, draw_patches)
+    return plotter.plot(label_qubits, draw_patches, draw_connections)
 
 
 class MatplotlibPlotter:
@@ -64,7 +65,7 @@ class MatplotlibPlotter:
 
     line_params = dict(
         color="black",
-        linestyle="--",
+        linestyle="-",
         lw=1,
     )
 
@@ -132,7 +133,9 @@ class MatplotlibPlotter:
         x_cords, y_cords = zip(*q_coords)
         self.ax.plot(x_cords, y_cords, **self.line_params)
 
-    def _draw_qubits(self, label_qubits: Optional[bool] = True) -> None:
+    def _draw_qubits(
+        self, label_qubits: bool = True, draw_connections: bool = True
+    ) -> None:
         qubits = self.layout.get_qubits()
 
         init_qubit = qubits.pop()
@@ -155,7 +158,8 @@ class MatplotlibPlotter:
 
                 for neighbour in self.layout.get_neighbors(qubit):
                     _dfs_draw(neighbour)
-                    self._draw_connection((qubit, neighbour))
+                    if draw_connections:
+                        self._draw_connection((qubit, neighbour))
 
         _dfs_draw(init_qubit)
         qubit_cords = (self._get_coords(qubit) for qubit in qubits)
@@ -179,10 +183,11 @@ class MatplotlibPlotter:
 
     def plot(
         self,
-        label_qubits: Optional[bool] = True,
-        draw_patches: Optional[bool] = True,
+        label_qubits: bool = True,
+        draw_patches: bool = True,
+        draw_connections: bool = True,
     ) -> Union[Figure, None]:
-        self._draw_qubits(label_qubits)
+        self._draw_qubits(label_qubits, draw_connections)
         if draw_patches:
             self._draw_patches()
         return self.fig
