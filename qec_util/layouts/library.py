@@ -6,10 +6,10 @@ from typing import Dict, Tuple
 from .layout import Layout
 
 
-def get_data_index(row: int, col: int, distance: int, start_ind: int = 1) -> int:
+def get_data_index(row: int, col: int, col_size: int, start_ind: int = 1) -> int:
     row_ind = row // 2
     col_ind = col // 2
-    index = start_ind + (row_ind * distance) + col_ind
+    index = start_ind + (row_ind * col_size) + col_ind
     return index
 
 
@@ -24,10 +24,10 @@ def invert_shift(row_shift: int, col_shift: int) -> Tuple[int, int]:
     return -row_shift, -col_shift
 
 
-def is_valid(row: int, col: int, max_size: int) -> bool:
-    if not 0 <= row < max_size:
+def is_valid(row: int, col: int, max_size_row: int, max_size_col: int) -> bool:
+    if not 0 <= row < max_size_row:
         return False
-    if not 0 <= col < max_size:
+    if not 0 <= col < max_size_col:
         return False
     return True
 
@@ -40,8 +40,9 @@ def add_missing_neighbours(neighbor_data: Dict) -> None:
                 neighbors[dir] = None
 
 
-def rot_surf_code(distance: int) -> Layout:
-    _check_distance(distance)
+def rot_surf_code_rectangle(distance_x: int, distance_z: int) -> Layout:
+    _check_distance(distance_x)
+    _check_distance(distance_z)
 
     name = f"Rotated d-{distance} surface code layout."
     description = None
@@ -61,9 +62,10 @@ def rot_surf_code(distance: int) -> Layout:
         interaction_order=int_order,
     )
 
-    grid_size = 2 * distance + 1
-    data_indexer = partial(get_data_index, distance=distance, start_ind=1)
-    valid_coord = partial(is_valid, max_size=grid_size)
+    col_size = 2 * distance_z + 1
+    row_size = 2 * distance_x + 1
+    data_indexer = partial(get_data_index, col_size=distance_z, start_ind=1)
+    valid_coord = partial(is_valid, max_size_col=col_size, max_size_row=row_size)
 
     pos_shifts = (1, -1)
     nbr_shifts = tuple(product(pos_shifts, repeat=2))
@@ -73,9 +75,9 @@ def rot_surf_code(distance: int) -> Layout:
 
     freq_seq = cycle(("low", "high"))
 
-    for row in range(1, grid_size, 2):
+    for row in range(1, row_size, 2):
         freq_group = next(freq_seq)
-        for col in range(1, grid_size, 2):
+        for col in range(1, col_size, 2):
             index = data_indexer(row, col)
 
             qubit_info = dict(
@@ -88,8 +90,8 @@ def rot_surf_code(distance: int) -> Layout:
             layout_data.append(qubit_info)
 
     x_index = count(1)
-    for row in range(0, grid_size, 2):
-        for col in range(2 + row % 4, grid_size - 1, 4):
+    for row in range(0, row_size, 2):
+        for col in range(2 + row % 4, col_size - 1, 4):
             anc_qubit = f"X{next(x_index)}"
             qubit_info = dict(
                 qubit=anc_qubit,
@@ -115,8 +117,8 @@ def rot_surf_code(distance: int) -> Layout:
                 neighbor_data[data_qubit][inv_direction] = anc_qubit
 
     z_index = count(1)
-    for row in range(2, grid_size - 1, 2):
-        for col in range(row % 4, grid_size, 4):
+    for row in range(2, row_size - 1, 2):
+        for col in range(row % 4, col_size, 4):
             anc_qubit = f"Z{next(z_index)}"
             qubit_info = dict(
                 qubit=anc_qubit,
@@ -152,8 +154,13 @@ def rot_surf_code(distance: int) -> Layout:
     return layout
 
 
+def rot_surf_code(distance: int) -> Layout:
+    _check_distance(distance)
+    return rot_surf_code_rectangle(distance_x=distance, distance_z=distance)
+
+
 def _check_distance(distance: int) -> None:
     if not isinstance(distance, int):
         raise ValueError("distance provided must be an integer")
-    if distance < 0 or (distance % 2) == 0:
-        raise ValueError("distance must be an odd positive integer")
+    if distance < 0:
+        raise ValueError("distance must be a positive integer")
