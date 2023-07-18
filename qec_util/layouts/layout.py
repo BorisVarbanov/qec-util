@@ -1,3 +1,4 @@
+"""Module that implement the layout class."""
 from __future__ import annotations
 
 from copy import copy, deepcopy
@@ -188,6 +189,7 @@ class Layout:
         return end_nodes
 
     def index_qubits(self) -> Layout:
+        """index_qubits Returns a copy of the layout, where the qubits are indexed by integers."""
         indexed_layout = copy(self)
         nodes = list(self.graph.nodes)
 
@@ -227,6 +229,15 @@ class Layout:
         return data_arr
 
     def expansion_matrix(self) -> DataArray:
+        """
+        expansion_matrix Returns the expansion matrix corresponding to the layout.
+        The matrix can expand a vector of measurements/defects to a 2D array corresponding to layout of the ancilla qubits. Used for convolutional neural networks.
+
+        Returns
+        -------
+        DataArray
+            The expansion matrix.
+        """
         node_view = self.graph.nodes(data=True)
 
         anc_qubits = [node for node, data in node_view if data["role"] == "anc"]
@@ -422,7 +433,22 @@ def valid_attrs(attrs: Dict[str, Any], **conditions: Any) -> bool:
     return True
 
 
-def index_coords(coords: List[int], reverse: bool = False):
+def index_coords(coords: List[int], reverse: bool = False) -> Tuple[List[int], int]:
+    """
+    index_coords Indexes a list of coordinates.
+
+    Parameters
+    ----------
+    coords : List[int]
+        The list of coordinates.
+    reverse : bool, optional
+        Whether to return the values in reverse, by default False
+
+    Returns
+    -------
+    Tuple[List[int], int]
+        The list of indexed coordinates and the number of unique coordinates.
+    """
     unique_vals = set(coords)
     num_unique_vals = len(unique_vals)
 

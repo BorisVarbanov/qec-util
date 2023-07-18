@@ -1,193 +1,317 @@
 """Layout plotting module."""
 import re
-from itertools import combinations
-from typing import Iterable, Optional, Union
+from typing import Sequence, Union, Tuple, Reversible, Iterable
+from copy import deepcopy
 
-import matplotlib.pyplot as plt
+import numpy as np
+
+from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.patches import Circle, Polygon
+from matplotlib.lines import Line2D
+from matplotlib.text import Text
 
 from .layout import Layout
 
-RE_FILTER = re.compile("([a-zA-Z]+)([0-9]+)")
+Coordinates = Tuple[float, float]
+CoordRange = Tuple[float, float]
+
+RE_FILTER = re.compile("([a-zA-Z]+)([0-9]+)")  # Regex to filter qubit labels
+
+ZORDERS = dict(circle=3, patch=1, line=2, text=4)
 
 
-def plot(
-    layout: Layout,
-    label_qubits: bool = True,
-    draw_patches: bool = True,
-    draw_connections: bool = True,
-    *,
-    axis: Optional[plt.Axes] = None,
-) -> Union[Figure, None]:
+def clockwise_sort(coordinates: Sequence[Coordinates]) -> Sequence[Coordinates]:
     """
-    plot Function to plot a layout
+    clockwise_sort Sorts a sequence of coordinates in clockwise order.
 
     Parameters
     ----------
-    layout : Layout
-        [description]
-    label_qubits : bool, optional
-        [description], by default True
-    axis : Optional[plt.Axes], optional
-        [description], by default None
+    coordinates : Sequence[Coordinates]
+        The coordinates to sort.
 
     Returns
     -------
-    [type]
-        [description]
+    Sequence[Coordinates]
+        The sorted coordinates.
     """
-    plotter = MatplotlibPlotter(layout, axis)
-    return plotter.plot(label_qubits, draw_patches, draw_connections)
+    coords = list(coordinates)
+    x_coords, y_coords = zip(*coords)
+
+    x_center = np.mean(x_coords)
+    y_center = np.mean(y_coords)
+
+    x_vectors = [x - x_center for x in x_coords]
+    y_vectors = [y - y_center for y in y_coords]
+
+    angles = np.arctan2(x_vectors, y_vectors)
+    inds = np.argsort(angles)
+    sorted_coords = [coords[ind] for ind in inds]
+    return sorted_coords
 
 
-class MatplotlibPlotter:
-    """A plotter based on the matplotlib library for Layout objects."""
+def invert(sequence: Reversible) -> Tuple:
+    """
+    invert Inverts a sequence.
 
-    zorders = dict(
-        line=3,
-        patch=1,
-        circle=5,
-        text=20,
-    )
+    Parameters
+    ----------
+    sequence : Sequence
+        The sequence to invert.
 
-    qubit_circ_params = dict(
-        radius=0.35,
-        lw=1,
-        ec="black",
-    )
+    Returns
+    -------
+    Tuple
+        The inverted sequence.
+    """
+    return tuple(reversed(sequence))
 
-    label_params = dict(
-        ha="center",
-        va="center",
-        weight="bold",
-    )
 
-    line_params = dict(
-        color="black",
-        linestyle="-",
-        lw=1,
-    )
+def get_label(qubit: str, coords: Coordinates, **kwargs) -> Text:
+    """
+    label_qubit Labels a qubit.
 
-    patch_params = dict(lw=0, alpha=0.3)
+    Parameters
+    ----------
+    axis : Axes
+        The axis to label the qubit on.
+    qubit : str
+        The qubit label.
+    coords : Tuple[float, float]
+        The coordinates of the qubit.
 
-    def __init__(
-        self,
-        layout: Layout,
-        ax: Optional[plt.Axes] = None,
-    ) -> None:
-        for qubit in layout.get_qubits():
-            if layout.param("coords", qubit) is None:
-                raise ValueError(
-                    f"All qubits in 'layout' must have 'coords' parameter set, qubit {qubit} does not."
-                )
-        self.layout = layout
+    Raises
+    ------
+    ValueError
+        If the qubit label is not in the expected format.
+    """
+    match = RE_FILTER.match(str(qubit))
+    if match is None:
+        raise ValueError(f"Unexpected qubit label {qubit}")
+    name, ind = match.groups()
+    text = f"${name}_\\mathrm{{{ind}}}$"
 
-        if ax is not None:
-            self.fig = None
-            self.ax = ax
+    x, y = coords
+    zorder = ZORDERS["text"]
+    label = Text(x, y, text, zorder=zorder, **kwargs)
+    return label
+
+
+def get_circle(center: Coordinates, radius: float, **kwargs) -> Circle:
+    """
+    get_circle Returns a circle.
+
+    Parameters
+    ----------
+    coords : Tuple[float, float]
+        The coordinates of the centre of the circle.
+    radius : float
+        The radius of the circle.
+
+    Returns
+    -------
+    Circle
+        The circle.
+    """
+    zorder = ZORDERS["circle"]
+    circle = Circle(center, radius=radius, zorder=zorder, **kwargs)
+    return circle
+
+
+def get_patch(patch_coords: Sequence[Coordinates], **kwargs) -> Polygon:
+    """
+    draw_patch Draws a patch. Matplotlib parameters can be passed as kwargs.
+
+    Parameters
+    ----------
+    axis : Axes
+        The axis to draw the patch on.
+    patch_coords : Sequence[Tuple[float, float]]
+        The coordinates of the patch.
+    """
+    zorder = ZORDERS["patch"]
+    patch = Polygon(patch_coords, closed=True, zorder=zorder, **kwargs)
+    return patch
+
+
+def get_line(coordinates: Sequence[Coordinates], **kwargs) -> Line2D:
+    """
+    draw_connection Draws a connection between two qubits. Matplotlib parameters can be passed as kwargs.
+
+    Parameters
+    ----------
+    axis : Axes
+        The axis to draw the connection on.
+    qubit_coords : Iterable[Tuple[float, float]]
+        The coordinates of the qubits.
+    """
+    x_coords, y_coords = zip(*coordinates)
+    zorder = ZORDERS["line"]
+    line = Line2D(x_coords, y_coords, zorder=zorder, **kwargs)
+    return line
+
+
+def qubit_labels(layout: Layout) -> Iterable[Text]:
+    qubits = layout.get_qubits()
+
+    for qubit in qubits:
+        coords = invert(layout.param("coords", qubit))
+
+        metaparams = layout.param("metaparams", qubit)
+        text_params = metaparams.get("text")
+
+        if text_params:
+            yield get_label(qubit, coords, **text_params)
         else:
-            self.fig, self.ax = plt.subplots(figsize=(6, 6))
+            yield get_label(qubit, coords)
 
-        self.ax.set_aspect("equal")
-        self.ax.axis("off")
 
-    def _get_coords(self, qubit):
-        coords = self.layout.param("coords", qubit)
-        return tuple(reversed(coords))
+def qubit_connections(layout: Layout) -> Iterable[Line2D]:
+    anc_qubits = layout.get_qubits(role="anc")
 
-    def _label_qubit(self, qubit: str, x: float, y: float) -> None:
-        match = RE_FILTER.match(str(qubit))
-        if match is None:
-            raise ValueError(f"Unexpected qubit label {qubit}")
-        label, ind = match.groups()
-        q_label = f"${label}_\\mathrm{{{ind}}}$"
-        self.ax.text(
-            x,
-            y,
-            q_label,
-            zorder=self.zorders["text"],
-            **self.label_params,
-        )
+    for anc_qubit in anc_qubits:
+        anc_coords = invert(layout.param("coords", anc_qubit))
 
-    def _draw_qubit_circ(self, x: float, y: float, color: str) -> None:
-        qubit_circ = Circle(
-            (x, y),
-            color=color,
-            zorder=self.zorders["circle"],
-            **self.qubit_circ_params,
-        )
-        self.ax.add_artist(qubit_circ)
+        metaparams = layout.param("metaparams", anc_qubit)
+        line_params = metaparams.get("line")
 
-    def _draw_patch(self, cords: Iterable[float], color: str) -> None:
-        patch = Polygon(
-            cords,
-            color=color,
-            zorder=self.zorders["patch"],
-            **self.patch_params,
-        )
-        self.ax.add_artist(patch)
+        neighbors = layout.get_neighbors(anc_qubit)
+        for nbr in neighbors:
+            nbr_coords = invert(layout.param("coords", nbr))
+            line_coords = (anc_coords, nbr_coords)
 
-    def _draw_connection(self, qubits: Iterable[str]) -> None:
-        q_coords = (self._get_coords(qubit) for qubit in qubits)
-        x_cords, y_cords = zip(*q_coords)
-        self.ax.plot(x_cords, y_cords, **self.line_params)
+            if line_params:
+                yield get_line(line_coords, **line_params)
+            else:
+                yield get_line(line_coords)
 
-    def _draw_qubits(
-        self, label_qubits: bool = True, draw_connections: bool = True
-    ) -> None:
-        qubits = self.layout.get_qubits()
 
-        init_qubit = qubits.pop()
-        drawn_qubits = set()
+def qubit_artists(layout: Layout) -> Iterable[Circle]:
+    """
+    draw_qubits Draws the qubits of a layout.
 
-        def _dfs_draw(qubit: str) -> None:
-            if qubit not in drawn_qubits:
-                role = self.layout.param("role", qubit)
-                if role == "data":
-                    color = "#fafafa"
-                else:
-                    stab_type = self.layout.param("stab_type", qubit)
-                    color = "#2196f3" if stab_type == "x_type" else "#4caf50"
+    Parameters
+    ----------
+    axis : Axes
+        The axis to draw the qubits on.
+    layout : Layout
+        The layout to draw the qubits of.
+    """
+    qubits = layout.get_qubits()
 
-                x, y = self._get_coords(qubit)
-                self._draw_qubit_circ(x, y, color)
-                if label_qubits:
-                    self._label_qubit(qubit, x, y)
-                drawn_qubits.add(qubit)
+    for qubit in qubits:
+        coords = invert(layout.param("coords", qubit))
 
-                for neighbour in self.layout.get_neighbors(qubit):
-                    _dfs_draw(neighbour)
-                    if draw_connections:
-                        self._draw_connection((qubit, neighbour))
+        metaparams = layout.param("metaparams", qubit)
+        circle_params = metaparams.get("circle")
 
-        _dfs_draw(init_qubit)
-        qubit_cords = (self._get_coords(qubit) for qubit in qubits)
-        x_cords, y_cords = zip(*qubit_cords)
-        self.ax.set_xlim(min(x_cords) - 2, max(x_cords) + 2)
-        self.ax.set_ylim(min(y_cords) - 2, max(y_cords) + 2)
+        if circle_params is not None:
+            params_copy = deepcopy(circle_params)
+            radius = params_copy.pop("radius", 0.3)
+            yield get_circle(coords, radius, **params_copy)
+        else:
+            yield get_circle(coords, radius)
 
-    def _draw_patches(self):
-        anc_qubits = self.layout.get_qubits(role="anc")
-        for anc in anc_qubits:
-            anc_cords = self._get_coords(anc)
-            stab_type = self.layout.param("stab_type", anc)
-            color = "#2196f3" if stab_type == "x_type" else "#4caf50"
-            neigbors = self.layout.get_neighbors(anc)
-            for data_pair in combinations(neigbors, 2):
-                pair_cords = list(self._get_coords(data) for data in data_pair)
-                dist = sum([abs(i - j) for i, j in zip(*pair_cords)])  # type: ignore
-                if dist <= 2:
-                    cords = [anc_cords, *pair_cords]
-                    self._draw_patch(cords, color)
 
-    def plot(
-        self,
-        label_qubits: bool = True,
-        draw_patches: bool = True,
-        draw_connections: bool = True,
-    ) -> Union[Figure, None]:
-        self._draw_qubits(label_qubits, draw_connections)
-        if draw_patches:
-            self._draw_patches()
-        return self.fig
+def patch_artists(layout: Layout) -> Iterable[Polygon]:
+    """
+    draw_patches Draws the stabilizer patches of a layout.
+
+    Parameters
+    ----------
+    axis : Axes
+        The axis to draw the patches on.
+    layout : Layout
+        The layout to draw the patches of.
+    """
+    anc_qubits = layout.get_qubits(role="anc")
+    for anc_qubit in anc_qubits:
+        anc_coords = invert(layout.param("coords", anc_qubit))
+
+        metaparams = layout.param("metaparams", anc_qubit)
+        patch_params = metaparams.get("patch")
+
+        neigbors = layout.get_neighbors(anc_qubit)
+
+        coords = [invert(layout.param("coords", nbr)) for nbr in neigbors]
+
+        num_neigbors = len(neigbors)
+        if num_neigbors == 2:
+            coords.append(anc_coords)
+
+        patch_coords = clockwise_sort(coords)
+        if patch_params:
+            yield get_patch(patch_coords, **patch_params)
+        else:
+            yield get_patch(patch_coords)
+
+
+def get_coord_range(layout: Layout) -> Tuple[CoordRange, CoordRange]:
+    qubits = layout.get_qubits()
+
+    inv_coords = (layout.param("coords", qubit) for qubit in qubits)
+    coords = map(invert, inv_coords)
+    x_coords, y_coords = zip(*coords)
+
+    x_range: CoordRange = (min(x_coords), max(x_coords))
+    y_range: CoordRange = (min(y_coords), max(y_coords))
+    return x_range, y_range
+
+
+def plot(
+    axis: Axes,
+    layout: Layout,
+    add_labels: bool = False,
+    add_patches: bool = False,
+    add_connections: bool = True,
+    set_limits: bool = True,
+    pad: float = 1,
+) -> Union[Figure, None]:
+    """
+    plot Plots a layout.
+
+    Parameters
+    ----------
+    axis : Axes
+        The axis to plot the layout on.
+    layout : Layout
+        The layout to plot.
+    add_labels : bool, optional
+        Whether to add qubit labels , by default True
+    add_patches : bool, optional
+        Whether to plot stabilizer patches, by default True
+    set_limits : bool, optional
+        Whether to set the figure limits, by default True
+    add_connections : bool, optional
+        Whether to plot lines indicating the connectivity, by default True
+    pad : float, optional
+        The padding to the bottom axis, by default 2
+
+    Returns
+    -------
+    Union[Figure, None]
+        The figure the layout was plotted on.
+    """
+    for artist in qubit_artists(layout):
+        axis.add_artist(artist)
+
+    if add_patches:
+        for artist in patch_artists(layout):
+            axis.add_artist(artist)
+
+    if add_connections:
+        for artist in qubit_connections(layout):
+            axis.add_artist(artist)
+
+    if add_labels:
+        for artist in qubit_labels(layout):
+            axis.add_artist(artist)
+
+    if set_limits:
+        x_range, y_range = get_coord_range(layout)
+
+        x_min, x_max = x_range
+        axis.set_xlim(x_min - pad, x_max + pad)
+
+        y_min, y_max = y_range
+        axis.set_ylim(y_min - pad, y_max + pad)

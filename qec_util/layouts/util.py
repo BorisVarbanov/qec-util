@@ -1,26 +1,33 @@
+"""Module that implement some utility functions."""
 from collections import deque
+from itertools import count
 
 from .layout import Layout
 
 
 def set_coords(layout: Layout) -> None:
     """
-    set_coords Automatically sets the qubit coordinates. This is used for
-    plotting the layout.
+    set_coords Sets the coordinates of the nodes in the layout.
+
+    Parameters
+    ----------
+    layout : Layout
+        The layout to set the coordinates of.
     """
 
+    # Get the shift in the coordinate for a given direction.
     def get_shift(direction: str) -> int:
         if direction in ("south", "west"):
             return -1
         return 1
 
-    nodes = list(layout.graph.nodes)
-    init_node = nodes.pop()
-    init_coord = [0, 0]
+    nodes = list(layout.graph.nodes)  # graph nodes
+    init_node = nodes.pop()  # initial node
+    init_coord = [0, 0]  # initial coordinates
 
-    set_nodes = set()
+    set_nodes = set()  # Nodes we have already set the coordinates of.
 
-    queue = deque()
+    queue = deque()  # Queue of nodes to set the coordinates of.
 
     queue.appendleft((init_node, init_coord))
     while queue:
@@ -35,3 +42,60 @@ def set_coords(layout: Layout) -> None:
                 shifts = tuple(map(get_shift, card_dirs))
                 nbr_coords = list(map(sum, zip(coords, shifts)))
                 queue.appendleft((nbr_node, nbr_coords))
+
+
+def index_chain(layout: Layout, init_node: str) -> None:
+    """
+    index_chain Indexes the chain of qubits in the layout.
+
+    Parameters
+    ----------
+    layout : Layout
+        The layout to index the chain of.
+    init_node : str
+        The initial qubit of the chain.
+
+    Raises
+    ------
+    ValueError
+        If the initial qubit is not in the graph.
+    ValueError
+        If any qubit is not connected to any other qubits.
+    ValueError
+        If any qubit is connected to more than 2 other qubits.
+    """
+    nodes = list(layout.graph.nodes)
+    chain_inds = count(0, 1)
+
+    if init_node not in nodes:
+        raise ValueError("init_node not in graph")
+
+    set_nodes = set()
+    queue = deque()
+
+    queue.appendleft(init_node)
+
+    while queue:
+        node = queue.pop()
+        ind = next(chain_inds)
+        layout.graph.nodes[node]["chain_ind"] = ind
+        set_nodes.add(node)
+
+        neighbors = list(layout.graph.adj[node])
+        num_neighbors = len(neighbors)
+        if num_neighbors > 2:
+            raise ValueError(
+                f"Qubit {node} is connected to {num_neighbors} other qubits, expected at most 2."
+            )
+        if num_neighbors == 0:
+            raise ValueError(
+                f"Qubit {node} is not connected to any other qubits, expected at least 1."
+            )
+
+        for nbr_node in neighbors:
+            if nbr_node not in set_nodes:
+                queue.appendleft(nbr_node)
+
+    for node in nodes:
+        if node not in set_nodes:
+            layout.graph.nodes[node]["chain_ind"] = None
