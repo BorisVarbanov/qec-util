@@ -436,8 +436,9 @@ class Layout:
                 adj_view = self.graph.adj[node]
 
                 for nbr_node, edge_attrs in adj_view.items():
-                    edge_dir = edge_attrs["direction"]
-                    nbr_dict[edge_dir] = nbr_node
+                    if nbr_node in qubits:
+                        edge_dir = edge_attrs["direction"]
+                        nbr_dict[edge_dir] = nbr_node
 
                 for ver_dir in ("north", "south"):
                     for hor_dir in ("east", "west"):
