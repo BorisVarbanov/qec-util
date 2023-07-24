@@ -6,10 +6,52 @@ from os import path
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
-import networkx as nx
+from networkx import DiGraph, relabel_nodes, adjacency_matrix
 import numpy as np
 import yaml
 from xarray import DataArray
+
+Directions = List[str]
+IntOrder = Union[Directions, Dict[str, Directions]]
+
+
+def _load_layout(self, layout_setup: List[Dict[str, Any]]) -> DiGraph:
+    """
+    _load_layout Internal function that loads the directed graph from the
+    setup dictionary that is provided during initialization.
+
+    Parameters
+    ----------
+    layout_setup : Dict[str, Any]
+        The setup dictionary that must specify the 'layout' list
+        of dictionaries, containing the qubit informaiton.
+
+    Raises
+    ------
+    ValueError
+        If there are unlabeled qubits in the any of the layout dictionaries.
+    ValueError
+        If any qubit label is repeated in the layout list.
+    """
+    graph = DiGraph()
+
+    for qubit_info in layout_setup:
+        qubit = qubit_info.pop("qubit", None)
+        if qubit is None:
+            raise ValueError("Each qubit in the layout must be labeled.")
+
+        if qubit in graph:
+            raise ValueError("Qubit label repeated, ensure labels are unique.")
+
+        graph.add_node(qubit, **qubit_info)
+
+    for node, attrs in self.nodes(data=True):
+        nbr_dict = attrs.pop("neighbors", None)
+        for edge_dir, nbr_qubit in nbr_dict.items():
+            if nbr_qubit is not None:
+                graph.add_edge(node, nbr_qubit, direction=edge_dir)
+
+    return graph
 
 
 class Layout:
@@ -17,7 +59,14 @@ class Layout:
     A general qubit layout class
     """
 
-    def __init__(self, setup: Dict[str, Any]) -> None:
+    def __init__(
+        self,
+        graph: DiGraph,
+        distance: Optional[int] = None,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        interaction_order: Optional[IntOrder] = None,
+    ) -> None:
         """
         __init__ Initiailizes the layout.
 
@@ -43,18 +92,17 @@ class Layout:
         ValueError
             If the type of the setup provided is not a dictionary.
         """
-        if not isinstance(setup, dict):
+        if not isinstance(graph, DiGraph):
             raise ValueError(
-                f"layout_setup expected as dict, instead got {type(setup)}"
+                f"graph expected as networkx.DiGraph, instead got {type(graph)}"
             )
 
-        self.name = setup.get("name")
-        self.distance = setup.get("distance")
-        self.description = setup.get("description")
-        self.interaction_order = setup.get("interaction_order")
+        self.graph = graph
 
-        self.graph = nx.DiGraph()
-        self._load_layout(setup)
+        self.name = name
+        self.distance = distance
+        self.description = description
+        self.interaction_order = interaction_order
 
         qubits = list(self.graph.nodes)
         num_qubits = len(qubits)
@@ -70,6 +118,18 @@ class Layout:
             _description_
         """
         return Layout(self.to_dict())
+
+    @classmethod
+    def from_dict(cls, setup: Dict[str, Any]):
+        distance = setup.get("distance")
+        name = setup.get("name")
+        description = setup.get("description")
+        interaction_order = setup.get("interaction_order")
+
+        layout_setup = setup["layout"]
+        graph = DiGraph(layout_setup)
+
+        return cls(graph, distance, name, description, interaction_order)
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -197,7 +257,7 @@ class Layout:
         inds = list(range(num_nodes))
 
         mapping = dict(zip(nodes, inds))
-        relabled_graph = nx.relabel_nodes(indexed_layout.graph, mapping)
+        relabled_graph = relabel_nodes(indexed_layout.graph, mapping)
         for node, ind in zip(nodes, inds):
             relabled_graph.nodes[ind]["name"] = node
         indexed_layout.graph = relabled_graph
@@ -216,7 +276,7 @@ class Layout:
             The adjacency matrix
         """
         qubits = self.get_qubits()
-        adj_matrix = nx.adjacency_matrix(self.graph)
+        adj_matrix = adjacency_matrix(self.graph)
 
         data_arr = DataArray(
             data=adj_matrix.toarray(),
@@ -231,7 +291,9 @@ class Layout:
     def expansion_matrix(self) -> DataArray:
         """
         expansion_matrix Returns the expansion matrix corresponding to the layout.
-        The matrix can expand a vector of measurements/defects to a 2D array corresponding to layout of the ancilla qubits. Used for convolutional neural networks.
+        The matrix can expand a vector of measurements/defects
+        to a 2D array corresponding to layout of the ancilla qubits.
+        Used for convolutional neural networks.
 
         Returns
         -------
@@ -295,7 +357,7 @@ class Layout:
         return proj_mat.rename(from_qubit="data_qubit", to_qubit="anc_qubit")
 
     @classmethod
-    def from_yaml(cls, filename: Union[str, Path]) -> "Layout":
+    def from_yaml(cls, filename: Union[str, Path]) -> Layout:
         """
         from_yaml Loads the layout class from a YAML file.
 
@@ -323,8 +385,8 @@ class Layout:
             raise ValueError("Given path doesn't exist")
 
         with open(filename, "r") as file:
-            layout_setup = yaml.safe_load(file)
-            return cls(layout_setup)
+            setup_dict = yaml.safe_load(file)
+            return cls.from_dict(setup_dict)
 
     def to_yaml(self, filename: Union[str, Path]) -> None:
         """
@@ -372,42 +434,6 @@ class Layout:
             The new value of the qubit parameter.
         """
         self.graph.nodes[qubit][param] = value
-
-    def _load_layout(self, setup: Dict[str, Any]) -> None:
-        """
-        _load_layout Internal function that loads the directed graph from the
-        setup dictionary that is provided during initialization.
-
-        Parameters
-        ----------
-        setup : Dict[str, Any]
-            The setup dictionary that must specify the 'layout' list
-            of dictionaries, containing the qubit informaiton.
-
-        Raises
-        ------
-        ValueError
-            If there are unlabeled qubits in the any of the layout dictionaries.
-        ValueError
-            If any qubit label is repeated in the layout list.
-        """
-        layout = deepcopy(setup.get("layout"))
-
-        for qubit_info in layout:
-            qubit = qubit_info.pop("qubit", None)
-            if qubit is None:
-                raise ValueError("Each qubit in the layout must be labeled.")
-
-            if qubit in self.graph:
-                raise ValueError("Qubit label repeated, ensure labels are unique.")
-
-            self.graph.add_node(qubit, **qubit_info)
-
-        for node, attrs in self.graph.nodes(data=True):
-            nbr_dict = attrs.pop("neighbors", None)
-            for edge_dir, nbr_qubit in nbr_dict.items():
-                if nbr_qubit is not None:
-                    self.graph.add_edge(node, nbr_qubit, direction=edge_dir)
 
 
 def valid_attrs(attrs: Dict[str, Any], **conditions: Any) -> bool:
