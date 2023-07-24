@@ -11,6 +11,9 @@ import numpy as np
 import yaml
 from xarray import DataArray
 
+IntDirections = List[str]
+IntOrder = Union[IntDirections, Dict[str, IntDirections]]
+
 
 class Layout:
     """
@@ -408,6 +411,45 @@ class Layout:
             for edge_dir, nbr_qubit in nbr_dict.items():
                 if nbr_qubit is not None:
                     self.graph.add_edge(node, nbr_qubit, direction=edge_dir)
+
+    def sublayout(
+        self,
+        qubits: List[str],
+        name: Optional[str] = None,
+        distance: Optional[int] = None,
+        description: Optional[str] = None,
+    ) -> Layout:
+        setup = {}
+
+        setup["name"] = name
+        setup["distance"] = distance
+        setup["description"] = description
+        setup["interaction_order"] = self.interaction_order
+
+        layout = []
+        for node, attrs in self.graph.nodes(data=True):
+            if node in qubits:
+                node_dict = deepcopy(attrs)
+                node_dict["qubit"] = node
+
+                nbr_dict = dict()
+                adj_view = self.graph.adj[node]
+
+                for nbr_node, edge_attrs in adj_view.items():
+                    edge_dir = edge_attrs["direction"]
+                    nbr_dict[edge_dir] = nbr_node
+
+                for ver_dir in ("north", "south"):
+                    for hor_dir in ("east", "west"):
+                        edge_dir = f"{ver_dir}_{hor_dir}"
+                        if edge_dir not in nbr_dict:
+                            nbr_dict[edge_dir] = None
+
+                node_dict["neighbors"] = nbr_dict
+
+                layout.append(node_dict)
+        setup["layout"] = layout
+        return Layout(setup)
 
 
 def valid_attrs(attrs: Dict[str, Any], **conditions: Any) -> bool:
