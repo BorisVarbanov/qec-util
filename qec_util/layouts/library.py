@@ -247,7 +247,7 @@ def rot_surf_code(distance: int) -> Layout:
         qubit_info["neighbors"] = neighbor_data[qubit]
 
     layout_setup["layout"] = layout_data
-    layout = Layout(layout_setup)  # Create the layout
+    layout = Layout.from_dict(layout_setup)  # Create the layout
     return layout
 
 
