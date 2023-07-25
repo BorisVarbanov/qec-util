@@ -6,50 +6,51 @@ from os import path
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
-from networkx import DiGraph, relabel_nodes, adjacency_matrix
+from networkx import DiGraph, adjacency_matrix, relabel_nodes
+
 import numpy as np
-import yaml
+
 from xarray import DataArray
+
+import yaml
 
 Directions = List[str]
 IntOrder = Union[Directions, Dict[str, Directions]]
 
 
-def _load_layout(self, layout_setup: List[Dict[str, Any]]) -> DiGraph:
+def load_layout(attribute_list: List[Dict[str, Any]]) -> DiGraph:
     """
-    _load_layout Internal function that loads the directed graph from the
-    setup dictionary that is provided during initialization.
+    load_layout Creates a networkx dirceteed graph from a list of qubit attributes.
 
     Parameters
     ----------
-    layout_setup : Dict[str, Any]
-        The setup dictionary that must specify the 'layout' list
-        of dictionaries, containing the qubit informaiton.
+    attribute_list : List[Dict[str, Any]]
+        The list of qubit attributes.
+
+    Returns
+    -------
+    DiGraph
+        The networkx directed graph.
 
     Raises
     ------
     ValueError
-        If there are unlabeled qubits in the any of the layout dictionaries.
-    ValueError
-        If any qubit label is repeated in the layout list.
+        If the qubit label is not defined.
     """
     graph = DiGraph()
 
-    for qubit_info in layout_setup:
-        qubit = qubit_info.pop("qubit", None)
-        if qubit is None:
-            raise ValueError("Each qubit in the layout must be labeled.")
+    for qubit_attributes in attribute_list:
+        try:
+            qubit = qubit_attributes.pop("qubit")
+        except KeyError as error:
+            raise ValueError("Each qubit in the layout must be labeled.") from error
 
-        if qubit in graph:
-            raise ValueError("Qubit label repeated, ensure labels are unique.")
+        neighbors = qubit_attributes.pop("neighbors", None)
 
-        graph.add_node(qubit, **qubit_info)
-
-    for node, attrs in self.nodes(data=True):
-        nbr_dict = attrs.pop("neighbors", None)
-        for edge_dir, nbr_qubit in nbr_dict.items():
-            if nbr_qubit is not None:
-                graph.add_edge(node, nbr_qubit, direction=edge_dir)
+        graph.add_node(qubit, **qubit_attributes)
+        for direction, neighbor in neighbors.items():
+            if neighbor is not None:
+                graph.add_edge(qubit, neighbor, direction=direction)
 
     return graph
 
@@ -62,35 +63,20 @@ class Layout:
     def __init__(
         self,
         graph: DiGraph,
-        distance: Optional[int] = None,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        interaction_order: Optional[IntOrder] = None,
+        **attrs: Any,
     ) -> None:
         """
-        __init__ Initiailizes the layout.
+        __init__ Initializes the layout class.
 
         Parameters
         ----------
-        setup : Dict[str, Any]
-            The layout setup, provided as a dict.
-
-            The setup dictionary is expected to have a 'layout' item, containing
-            a list of dictionaries. Each such dictionary (dict[str, Any]) must define the
-            qubit label (str) corresponding the 'qubit' item. In addition, each dictionary
-            must also have a 'neighbors" item that defines a dictonary (dict[str, str])
-            of ordinal directions and neighbouring qubit labels. Apart from these two items,
-            each dictionary can hold any other metadata or parameter relevant to these qubits.
-
-            In addition to the layout list, the setup dictionary can also optioonally
-            define the name of the layout (str), a description (str) of the layout as well
-            as the interaction order of the different types of check, if the layout is used
-            for a QEC code.
+        graph : DiGraph
+            The networkx directed graph.
 
         Raises
         ------
         ValueError
-            If the type of the setup provided is not a dictionary.
+            If the graph is not a networkx directed graph.
         """
         if not isinstance(graph, DiGraph):
             raise ValueError(
@@ -98,15 +84,13 @@ class Layout:
             )
 
         self.graph = graph
-
-        self.name = name
-        self.distance = distance
-        self.description = description
-        self.interaction_order = interaction_order
+        for param, val in attrs.items():
+            self.graph.graph[param] = val
 
         qubits = list(self.graph.nodes)
         num_qubits = len(qubits)
-        self._qubit_inds = dict(zip(qubits, range(num_qubits)))
+        inds = range(num_qubits)
+        self._qubit_inds = dict(zip(qubits, inds))
 
     def __copy__(self) -> Layout:
         """
@@ -117,19 +101,29 @@ class Layout:
         Layout
             _description_
         """
-        return Layout(self.to_dict())
+        graph = self.graph.copy()
+        return Layout(graph)
 
     @classmethod
-    def from_dict(cls, setup: Dict[str, Any]):
-        distance = setup.get("distance")
-        name = setup.get("name")
-        description = setup.get("description")
-        interaction_order = setup.get("interaction_order")
+    def from_dict(cls: Layout, attributes: Dict[str, Any]) -> Layout:
+        """
+        from_dict Creates a layout from a setup dictionary.
 
-        layout_setup = setup["layout"]
-        graph = DiGraph(layout_setup)
+        Parameters
+        ----------
+        cls : Layout
+            The layout class.
+        attributes : Dict[str, Any]
+            The setup dictionary.
 
-        return cls(graph, distance, name, description, interaction_order)
+        Returns
+        -------
+        Layout
+            The initialized layout object.
+        """
+        attribute_list = attributes.pop("layout")
+        graph = load_layout(attribute_list)
+        return cls(graph, **attributes)
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -140,35 +134,28 @@ class Layout:
         Dict[str, Any]
             The setup dictionary of the setup.
         """
-        setup = dict()
+        setup = {}
 
-        setup["name"] = self.name
-        setup["distance"] = self.distance
-        setup["description"] = self.description
-        setup["interaction_order"] = self.interaction_order
-
-        layout = []
+        attribute_list = []
+        directions = ["north_east", "north_west", "south_east", "south_west"]
         for node, attrs in self.graph.nodes(data=True):
-            node_dict = deepcopy(attrs)
-            node_dict["qubit"] = node
+            attributes = deepcopy(attrs)
+            attributes["qubit"] = node
 
-            nbr_dict = dict()
+            neighbors = {}
             adj_view = self.graph.adj[node]
 
             for nbr_node, edge_attrs in adj_view.items():
-                edge_dir = edge_attrs["direction"]
-                nbr_dict[edge_dir] = nbr_node
+                direction = edge_attrs["direction"]
+                neighbors[direction] = nbr_node
 
-            for ver_dir in ("north", "south"):
-                for hor_dir in ("east", "west"):
-                    edge_dir = f"{ver_dir}_{hor_dir}"
-                    if edge_dir not in nbr_dict:
-                        nbr_dict[edge_dir] = None
+            for direction in directions:
+                if direction not in neighbors:
+                    neighbors[direction] = None
 
-            node_dict["neighbors"] = nbr_dict
-
-            layout.append(node_dict)
-        setup["layout"] = layout
+            attributes["neighbors"] = neighbors
+            attribute_list.append(attributes)
+        setup["layout"] = attribute_list
         return setup
 
     def get_inds(self, qubits: Sequence[str]) -> List[int]:
@@ -331,7 +318,7 @@ class Layout:
         projection_matrix Returns the projection matrix, mapping
         data qubits (defined by a parameter 'role' equal to 'data')
         to ancilla qubits (defined by a parameter 'role' equal to 'anc')
-        measuing a given stabilizerr type (defined by a parameter
+        measuing a given stabilizer type (defined by a parameter
         'stab_type' equal to stab_type).
 
         This matrix can be used to project a final set of data-qubit
@@ -401,6 +388,9 @@ class Layout:
         setup = self.to_dict()
         with open(filename, "w") as file:
             yaml.dump(setup, file, default_flow_style=False)
+
+    def attr(self, param: str) -> Any:
+        return self.graph.graph[param]
 
     def param(self, param: str, qubit: str) -> Any:
         """
