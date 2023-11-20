@@ -44,7 +44,7 @@ def rot_surf_code_rectangle(distance_x: int, distance_z: int) -> Layout:
     _check_distance(distance_x)
     _check_distance(distance_z)
 
-    name = f"Rotated d-{distance} surface code layout."
+    name = f"Rotated dx-{distance_x} dz-{distance_z} surface code layout."
     description = None
 
     freq_order = ["low", "mid", "high"]
@@ -54,13 +54,21 @@ def rot_surf_code_rectangle(distance_x: int, distance_z: int) -> Layout:
         z_type=["north_east", "south_east", "north_west", "south_west"],
     )
 
+    log_z = [f"D{i+1}" for i in range(distance_z)]
+    log_x = [f"D{i*distance_z+1}" for i in range(distance_x)]
+
     layout_setup = dict(
         name=name,
         description=description,
-        distance=distance,
+        distance_x=distance_x,
+        distance_z=distance_z,
         freq_order=freq_order,
         interaction_order=int_order,
+        log_z=log_z,
+        log_x=log_x,
     )
+    if distance_x == distance_z:
+        layout_setup["distance"] = distance_z
 
     col_size = 2 * distance_z + 1
     row_size = 2 * distance_x + 1

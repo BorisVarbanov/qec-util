@@ -48,9 +48,13 @@ class Layout:
             )
 
         self.name = setup.get("name")
+        self.distance_x = setup.get("distance_x")
+        self.distance_z = setup.get("distance_z")
         self.distance = setup.get("distance")
         self.description = setup.get("description")
         self.interaction_order = setup.get("interaction_order")
+        self.log_z = setup.get("log_z")
+        self.log_x = setup.get("log_x")
 
         self.graph = nx.DiGraph()
         self._load_layout(setup)
